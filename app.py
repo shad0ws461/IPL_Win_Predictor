@@ -1075,12 +1075,11 @@ if st.session_state.predicted:
 
 # 4th Tier: Generative AI Match Assistant
 if st.session_state.predicted:
-    st.markdown("---")
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown("### 🔮 Generative AI Match Assistant")
-    
     # Check production cloud secrets variables dynamically
     if "gemini_api" in st.secrets and st.secrets["gemini_api"].get("api_key"):
+        st.markdown("---")
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("### 🔮 Generative AI Match Assistant")
         try:
             # Bind API credentials behind the scenes safely
             import google.generativeai as genai
@@ -1127,11 +1126,8 @@ if st.session_state.predicted:
                         
         except Exception as e:
             st.error(f"Failed to boot GenAI Engine: {str(e)}")
-    else:
-        # Standard clean info block if server syncing is delayed
-        st.info("ℹ️ Generative Assistant running in Offline Mode. Configure your Streamlit Management Cloud Dashboard Secrets to toggle Live Insights.")
-        
-    st.markdown('</div>', unsafe_allow_html=True)
+            
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer info (dynamically calculated to CSE-AIML 2026)
 import datetime
