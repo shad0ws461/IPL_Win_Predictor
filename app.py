@@ -1076,59 +1076,65 @@ if st.session_state.predicted:
 
 # 4th Tier: Generative AI Match Assistant
 if st.session_state.predicted:
-    # Check production cloud secrets variables dynamically
+    st.markdown("---")
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown("### 🔮 Generative AI Match Assistant")
+    
+    # Retrieve key from secrets or default fallback
+    api_key = None
     if "gemini_api" in st.secrets and st.secrets["gemini_api"].get("api_key"):
-        st.markdown("---")
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("### 🔮 Generative AI Match Assistant")
-        try:
-            # Bind API credentials behind the scenes safely
-            import google.generativeai as genai
-            genai.configure(api_key=st.secrets["gemini_api"]["api_key"])
-            
-            # Success Badge to signal the module has switched ONLINE
-            st.caption("🟢 **Generative AI Match Assistant:** Engine Active (Gemini 1.5 Flash Online)")
-            
-            # Standard structural evaluation tabs
-            tabs = st.tabs(["📊 Live Commentary", "📋 Tactical Coaching", "📚 Historical Sim"])
-            
-            # Retrieve parameters safely
-            batting_team = st.session_state.batting_team
-            bowling_team = st.session_state.bowling_team
-            runs_needed = st.session_state.runs_left
-            balls_left = st.session_state.balls_left
-            wickets_lost = 10 - st.session_state.wickets_left
-            batting_prob = st.session_state.batting_prob
-            rrr = st.session_state.rrr
-            crr = st.session_state.crr
-            
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            
-            with tabs[0]:
-                st.write("💬 Dynamic live match assistant commentary matrix ready.")
-                if st.button("🔊 Generate Live Commentary", use_container_width=True):
-                    with st.spinner("Harsha is taking the mic..."):
-                        commentary = generate_commentary_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob)
-                        st.chat_message("assistant", avatar="🎙️").write(commentary)
-                        
-            with tabs[1]:
-                st.write("📋 Situational AI Coach Advisory ready.")
-                if st.button("✨ Request Tactical Strategy", use_container_width=True):
-                    with st.spinner("Analyzing match pressure index..."):
-                        advice = generate_tactical_advice_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr)
-                        st.chat_message("assistant", avatar="📋").write(advice)
-                        
-            with tabs[2]:
-                st.write("📚 Historical Run-Chase Sim ready.")
-                if st.button("🔍 Find Historical Run-Chase Similarities", use_container_width=True):
-                    with st.spinner("Scanning IPL historical records..."):
-                        history = generate_historical_context_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost)
-                        st.chat_message("assistant", avatar="📚").write(history)
-                        
-        except Exception as e:
-            st.error(f"Failed to boot GenAI Engine: {str(e)}")
-            
-        st.markdown('</div>', unsafe_allow_html=True)
+        api_key = st.secrets["gemini_api"]["api_key"]
+    else:
+        api_key = "AIzaSyC-JIKCEK9U5_AUy6hwVx4XdscUgTM7560"
+        
+    try:
+        # Bind API credentials behind the scenes safely
+        import google.generativeai as genai
+        genai.configure(api_key=api_key.strip())
+        
+        # Success Badge to signal the module has switched ONLINE
+        st.caption("🟢 **Generative AI Match Assistant:** Engine Active (Gemini 1.5 Flash Online)")
+        
+        # Standard structural evaluation tabs
+        tabs = st.tabs(["📊 Live Commentary", "📋 Tactical Coaching", "📚 Historical Sim"])
+        
+        # Retrieve parameters safely
+        batting_team = st.session_state.batting_team
+        bowling_team = st.session_state.bowling_team
+        runs_needed = st.session_state.runs_left
+        balls_left = st.session_state.balls_left
+        wickets_lost = 10 - st.session_state.wickets_left
+        batting_prob = st.session_state.batting_prob
+        rrr = st.session_state.rrr
+        crr = st.session_state.crr
+        
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        with tabs[0]:
+            st.write("💬 Dynamic live match assistant commentary matrix ready.")
+            if st.button("🔊 Generate Live Commentary", use_container_width=True):
+                with st.spinner("Harsha is taking the mic..."):
+                    commentary = generate_commentary_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob)
+                    st.chat_message("assistant", avatar="🎙️").write(commentary)
+                    
+        with tabs[1]:
+            st.write("📋 Situational AI Coach Advisory ready.")
+            if st.button("✨ Request Tactical Strategy", use_container_width=True):
+                with st.spinner("Analyzing match pressure index..."):
+                    advice = generate_tactical_advice_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr)
+                    st.chat_message("assistant", avatar="📋").write(advice)
+                    
+        with tabs[2]:
+            st.write("📚 Historical Run-Chase Sim ready.")
+            if st.button("🔍 Find Historical Run-Chase Similarities", use_container_width=True):
+                with st.spinner("Scanning IPL historical records..."):
+                    history = generate_historical_context_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost)
+                    st.chat_message("assistant", avatar="📚").write(history)
+                    
+    except Exception as e:
+        st.error(f"Failed to boot GenAI Engine: {str(e)}")
+        
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer info (dynamically calculated to CSE-AIML 2026)
 import datetime
