@@ -626,7 +626,7 @@ if 'predicted' not in st.session_state:
 
 # 1. Front-Page OpenCV Layout Placement
 st.markdown('<div class="glass-card" style="margin-top: 1.5rem; margin-bottom: 1.5rem;">', unsafe_allow_html=True)
-st.subheader("📸 Automated Scoreboard Smart Scan (OpenCV)")
+st.subheader("Automated Scoreboard Smart Scan")
 uploaded_file = st.file_uploader("Upload live match screenshot to parse metrics automatically", type=['jpg', 'jpeg', 'png'])
 
 if uploaded_file is not None:
