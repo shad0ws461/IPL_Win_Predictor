@@ -418,15 +418,27 @@ def generate_trajectory(pipe, batting_team, bowling_team, city, runs_left, balls
             
     return overs_axis, probs_crr * 100, probs_rrr * 100, probs_col * 100
 
-# Load pipeline binary
+# Load pipeline binary (with self-healing auto-retrain fallback on environment mismatch)
 @st.cache_resource
 def load_pipeline():
     model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipe.pkl")
-    if not os.path.exists(model_path):
-        st.error("Model file pipe.pkl not found! Please run train.py first.")
-        st.stop()
-    with open(model_path, 'rb') as f:
-        return pickle.load(f)
+    try:
+        if not os.path.exists(model_path):
+            from model_engine import retrain_model_pipeline
+            retrain_model_pipeline()
+        with open(model_path, 'rb') as f:
+            return pickle.load(f)
+    except Exception:
+        # Fallback: Environment/version mismatch (e.g. local Python vs Streamlit Cloud Python 3.14).
+        # Dynamically compile the model on the hosting server to align dependencies perfectly.
+        try:
+            from model_engine import retrain_model_pipeline
+            retrain_model_pipeline()
+            with open(model_path, 'rb') as f:
+                return pickle.load(f)
+        except Exception as inner_e:
+            st.error(f"Critical Error: Failed to compile and load the predictor model pipeline: {inner_e}")
+            st.stop()
 
 pipe = load_pipeline()
 
