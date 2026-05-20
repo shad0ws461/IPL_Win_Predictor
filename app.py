@@ -1093,16 +1093,17 @@ if st.session_state.predicted:
 # 4th Tier: Generative AI Match Assistant
 if st.session_state.predicted:
     st.markdown('<div class="glass-card" style="margin-top: 1.5rem;">', unsafe_allow_html=True)
-    st.subheader("🔮 Generative AI Match Assistant")
     
-    if api_connected:
-        st.caption("🤖 Generative Engine Status: Active (Gemini 1.5 Flash Connected)")
-        
+    # Production-grade background validation framework
+    if "gemini_api" in st.secrets and st.secrets["gemini_api"].get("api_key"):
         try:
+            st.markdown("### 🔮 Generative AI Match Assistant")
+            st.caption("🟢 **Generative AI Match Assistant:** Engine Active (Gemini 1.5 Flash Bound)")
+            
             from openai import OpenAI
             # Connect using Gemini's OpenAI Compatibility base URL
             client = OpenAI(
-                api_key=api_key.strip(),
+                api_key=st.secrets["gemini_api"]["api_key"].strip(),
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
             )
             model_name = "gemini-1.5-flash"
@@ -1117,11 +1118,11 @@ if st.session_state.predicted:
             rrr = st.session_state.rrr
             crr = st.session_state.crr
             
-            # Create tabs for clean layout spacing
+            # Safely render layout navigation tabs
             tab_commentary, tab_coach, tab_history = st.tabs([
-                "🎙️ Live Commentary", 
+                "📊 Live Commentary", 
                 "📋 Tactical Coaching", 
-                "📜 Historical Sim"
+                "📚 Historical Sim"
             ])
             
             with tab_commentary:
@@ -1139,16 +1140,17 @@ if st.session_state.predicted:
                         st.chat_message("assistant", avatar="📋").write(advice)
                         
             with tab_history:
-                st.write("### 📜 Match Contextualizer & History")
+                st.write("### 📚 Historical Run-Chase Sim")
                 if st.button("🔍 FIND HISTORICAL RUN-CHASE SIMILARITIES", use_container_width=True):
                     with st.spinner("Scanning IPL historical records..."):
                         history = generate_historical_context(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost)
-                        st.chat_message("assistant", avatar="📜").write(history)
+                        st.chat_message("assistant", avatar="📚").write(history)
                         
         except Exception as e:
-            st.error(f"Error initializing Client: {e}")
+            st.error(f"Failed to initialize GenAI Engine: {str(e)}")
     else:
-        st.error("⚠️ Generative Engine Offline: Missing 'gemini_api.api_key' in secrets.toml configuration.")
+        st.markdown("### 🔮 Generative AI Match Assistant")
+        st.info("ℹ️ Generative Assistant running in Offline Mode. Configure your Streamlit Management Cloud Dashboard Secrets to toggle Live Insights.")
         
     st.markdown('</div>', unsafe_allow_html=True)
 
