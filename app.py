@@ -268,22 +268,30 @@ def calibrate_input_df(df):
     to prevent absolute target magnitude from distorting win probability.
     """
     calibrated_df = df.copy()
+    # Cast to float to avoid dtype assignment errors with scalar updates in integer columns
+    for col in ['target_runs', 'runs_left', 'rrr', 'crr']:
+        if col in calibrated_df.columns:
+            calibrated_df[col] = calibrated_df[col].astype(float)
+            
     for idx in calibrated_df.index:
-        tgt = calibrated_df.loc[idx, 'target_runs']
+        tgt = float(calibrated_df.at[idx, 'target_runs'])
         if tgt > 230:
             scale = 220.0 / tgt
-            calibrated_df.loc[idx, 'target_runs'] = 220.0
-            calibrated_df.loc[idx, 'runs_left'] = max(0.0, calibrated_df.loc[idx, 'runs_left'] * scale)
+            calibrated_df.at[idx, 'target_runs'] = 220.0
             
-            balls_left = calibrated_df.loc[idx, 'balls_left']
+            current_runs_left = float(calibrated_df.at[idx, 'runs_left'])
+            calibrated_df.at[idx, 'runs_left'] = float(max(0.0, current_runs_left * scale))
+            
+            balls_left = float(calibrated_df.at[idx, 'balls_left'])
             balls_bowled = 120.0 - balls_left
             
             # Recalculate rrr & crr based on scaled targets to maintain math cohesion
-            calibrated_df.loc[idx, 'rrr'] = (calibrated_df.loc[idx, 'runs_left'] * 6.0) / balls_left if balls_left > 0 else 0.0
-            curr_score = 220.0 - calibrated_df.loc[idx, 'runs_left']
-            calibrated_df.loc[idx, 'crr'] = (curr_score * 6.0) / balls_bowled if balls_bowled > 0 else 0.0
+            calibrated_df.at[idx, 'rrr'] = float((calibrated_df.at[idx, 'runs_left'] * 6.0) / balls_left if balls_left > 0 else 0.0)
+            curr_score = 220.0 - calibrated_df.at[idx, 'runs_left']
+            calibrated_df.at[idx, 'crr'] = float((curr_score * 6.0) / balls_bowled if balls_bowled > 0 else 0.0)
             
     return calibrated_df
+
 
 def generate_commentary(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob):
     """Generates Harsha Bhogle / Ravi Shastri-style commentary using GPT model"""
