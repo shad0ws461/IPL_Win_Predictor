@@ -624,29 +624,6 @@ if 'predicted' not in st.session_state:
     st.session_state.override_message = ""
     st.session_state.override_status_type = ""
 
-# 1. Front-Page OpenCV Layout Placement
-st.markdown('<div class="glass-card" style="margin-top: 1.5rem; margin-bottom: 1.5rem;">', unsafe_allow_html=True)
-st.subheader("Automated Scoreboard Smart Scan")
-uploaded_file = st.file_uploader("Upload live match screenshot to parse metrics automatically", type=['jpg', 'jpeg', 'png'])
-
-if uploaded_file is not None:
-    with st.spinner("Processing screenshot with OpenCV..."):
-        success, result = process_scoreboard_frame(uploaded_file)
-        if success:
-            st.success("✅ OpenCV Smart Scan Complete!")
-            st.json({
-                "Parsed Target": result["target"],
-                "Parsed Score": result["score"],
-                "Parsed Wickets": result["wickets"],
-                "Parsed Overs": f"{result['overs']}.{result['balls']}"
-            })
-            with st.expander("👁️ View OCR & Image Pipeline Details"):
-                st.caption("Extracted text pattern:")
-                st.code(result["raw_text"])
-                st.caption("OpenCV processing operations: Grayscale conversion, Gaussian Blur smoothing, and Otsu's adaptive thresholding.")
-        else:
-            st.error(f"Scan failed: {result}")
-st.markdown('</div>', unsafe_allow_html=True)
 
 # Split Workspace Layout (Inputs Left, Immediate Predictions Right)
 col_left, col_right = st.columns([1.05, 1.15], gap="large")
@@ -831,6 +808,30 @@ elif predict_clicked:
 
 # Right workspace panel (Visualizations)
 with col_right:
+    # 1. Front-Page OpenCV Layout Placement
+    st.markdown('<div class="glass-card" style="margin-bottom: 1.5rem;">', unsafe_allow_html=True)
+    st.subheader("Automated Scoreboard Smart Scan")
+    uploaded_file = st.file_uploader("Upload live match screenshot to parse metrics automatically", type=['jpg', 'jpeg', 'png'])
+
+    if uploaded_file is not None:
+        with st.spinner("Processing screenshot with OpenCV..."):
+            success, result = process_scoreboard_frame(uploaded_file)
+            if success:
+                st.success("✅ OpenCV Smart Scan Complete!")
+                st.json({
+                    "Parsed Target": result["target"],
+                    "Parsed Score": result["score"],
+                    "Parsed Wickets": result["wickets"],
+                    "Parsed Overs": f"{result['overs']}.{result['balls']}"
+                })
+                with st.expander("👁️ View OCR & Image Pipeline Details"):
+                    st.caption("Extracted text pattern:")
+                    st.code(result["raw_text"])
+                    st.caption("OpenCV processing operations: Grayscale conversion, Gaussian Blur smoothing, and Otsu's adaptive thresholding.")
+            else:
+                st.error(f"Scan failed: {result}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
     st.markdown('<div class="glass-card" style="height: 100%;">', unsafe_allow_html=True)
     st.subheader("Live Analytical Workspace")
     
