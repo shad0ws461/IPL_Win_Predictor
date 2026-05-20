@@ -293,8 +293,8 @@ def calibrate_input_df(df):
     return calibrated_df
 
 
-def generate_commentary(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob):
-    """Generates Harsha Bhogle / Ravi Shastri-style commentary using GPT model"""
+def generate_commentary(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob):
+    """Generates Harsha Bhogle / Ravi Shastri-style commentary using GPT or Gemini model"""
     prompt = (
         f"Generate a witty, high-energy cricket commentary in the style of Harsha Bhogle or Ravi Shastri "
         f"for the current match state: Chasing team is {batting_team}, defending team is {bowling_team}. "
@@ -305,7 +305,7 @@ def generate_commentary(client, batting_team, bowling_team, runs_needed, balls_l
     )
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=model_name,
             messages=[
                 {"role": "system", "content": "You are a legendary IPL cricket commentator (like Harsha Bhogle or Ravi Shastri)."},
                 {"role": "user", "content": prompt}
@@ -317,7 +317,7 @@ def generate_commentary(client, batting_team, bowling_team, runs_needed, balls_l
     except Exception as e:
         return f"⚠️ Commentary generation failed: {e}"
 
-def generate_tactical_advice(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr):
+def generate_tactical_advice(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr):
     """Generates situation-based coach recommendations for both captains"""
     prompt = (
         f"Act as a professional cricket coach. Analyze this current IPL match state:\n"
@@ -330,7 +330,7 @@ def generate_tactical_advice(client, batting_team, bowling_team, runs_needed, ba
     )
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=model_name,
             messages=[
                 {"role": "system", "content": "You are an elite IPL cricket coach providing direct tactical advice to captains."},
                 {"role": "user", "content": prompt}
@@ -342,7 +342,7 @@ def generate_tactical_advice(client, batting_team, bowling_team, runs_needed, ba
     except Exception as e:
         return f"⚠️ Tactical coaching failed: {e}"
 
-def generate_historical_context(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost):
+def generate_historical_context(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost):
     """Finds matching historic run chases in IPL history"""
     prompt = (
         f"Given a situation in an IPL match where the chasing team ({batting_team}) needs "
@@ -353,7 +353,7 @@ def generate_historical_context(client, batting_team, bowling_team, runs_needed,
     )
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=model_name,
             messages=[
                 {"role": "system", "content": "You are an expert cricket historian with encyclopedic knowledge of IPL match outcomes."},
                 {"role": "user", "content": prompt}
@@ -982,20 +982,36 @@ if st.session_state.predicted:
 # 4th Tier: Generative AI Match Assistant
 if st.session_state.predicted:
     st.markdown('<div class="glass-card" style="margin-top: 1.5rem;">', unsafe_allow_html=True)
-    st.subheader("🔮 Generative AI Match Assistant (Powered by GPT-4)")
+    st.subheader("🔮 Generative AI Match Assistant")
     
     # Check for API Key in environment or secrets first
-    api_key = st.secrets.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    api_key = st.secrets.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY") or st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
     
     if not api_key:
-        api_key = st.text_input("OpenAI API Key Required", type="password", help="Enter your OpenAI API key to unlock real-time live commentary, tactical coaching, and historical simulations.")
+        api_key = st.text_input("OpenAI / Gemini API Key Required", type="password", help="Enter your OpenAI or Gemini API key to unlock real-time live commentary, tactical coaching, and historical simulations.")
         
     if not api_key:
-        st.info("💡 Enter your OpenAI API Key above to unlock live generative insights.")
+        st.info("💡 Enter your OpenAI API Key (sk-...) or Google Gemini API Key (AIzaSy...) above to unlock live generative insights.")
     else:
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=api_key)
+            
+            # Auto-detect key prefix: Google Gemini vs OpenAI
+            clean_key = api_key.strip().strip('"').strip("'")
+            if clean_key.startswith("AIzaSy"):
+                # Use Gemini's OpenAI Compatibility Layer base URL
+                client = OpenAI(
+                    api_key=clean_key,
+                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+                )
+                model_name = "gemini-1.5-flash"
+                engine_label = "Gemini 1.5 Flash"
+            else:
+                client = OpenAI(api_key=clean_key)
+                model_name = "gpt-4o-mini"
+                engine_label = "GPT-4o Mini"
+                
+            st.success(f"Connected to GenAI Engine: **{engine_label}**")
             
             # Retrieve parameters safely
             batting_team = st.session_state.batting_team
@@ -1018,25 +1034,25 @@ if st.session_state.predicted:
                 st.write("### 🎙️ Ravi & Harsha AI Commentator")
                 if st.button("🔊 GENERATE LIVE COMMENTARY", use_container_width=True):
                     with st.spinner("Harsha is taking the mic..."):
-                        commentary = generate_commentary(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob)
+                        commentary = generate_commentary(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob)
                         st.chat_message("assistant", avatar="🎙️").write(commentary)
                         
             with tab_coach:
                 st.write("### 📋 Situational AI Coach Advisory")
                 if st.button("🧠 REQUEST TACTICAL STRATEGY", use_container_width=True):
                     with st.spinner("Analyzing match pressure index..."):
-                        advice = generate_tactical_advice(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr)
+                        advice = generate_tactical_advice(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr)
                         st.chat_message("assistant", avatar="📋").write(advice)
                         
             with tab_history:
                 st.write("### 📜 Match Contextualizer & History")
                 if st.button("🔍 FIND HISTORICAL RUN-CHASE SIMILARITIES", use_container_width=True):
                     with st.spinner("Scanning IPL historical records..."):
-                        history = generate_historical_context(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost)
+                        history = generate_historical_context(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost)
                         st.chat_message("assistant", avatar="📜").write(history)
                         
         except Exception as e:
-            st.error(f"Error initializing OpenAI Client: {e}")
+            st.error(f"Error initializing Client: {e}")
             
     st.markdown('</div>', unsafe_allow_html=True)
 
