@@ -6,3 +6,4 @@ requests
 plotly
 openai
 opencv-python-headless
+google-generativeai

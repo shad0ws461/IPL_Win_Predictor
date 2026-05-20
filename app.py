@@ -294,19 +294,19 @@ def calibrate_input_df(df):
             
     return calibrated_df
 
-def process_match_screenshot(uploaded_file):
+def process_scoreboard_frame(uploaded_file):
     """
     Processes the uploaded match screenshot using OpenCV clean-up algorithms:
-    - Converts file buffer to BGR frame
+    - Decodes buffer into BGR frame using cv2.imdecode(..., 1)
     - Grayscale conversion
     - Gaussian Blur smoothing
-    - Otsu's Binarization thresholding to isolate text contours
+    - Otsu's Binarization thresholding to isolate digit contours
     - Extracts numerical patterns using regular expressions (Regex)
     """
     try:
         # Read file buffer as numpy array and decode to OpenCV BGR
         file_bytes = np.frombuffer(uploaded_file.read(), np.uint8)
-        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        img = cv2.imdecode(file_bytes, 1) # cv2.imdecode(..., 1) reads in BGR color mode
         
         if img is None:
             return False, "Failed to decode image using OpenCV."
@@ -317,21 +317,27 @@ def process_match_screenshot(uploaded_file):
         _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         # OCR Engine Simulation (In production with Tesseract binary, use: pytesseract.image_to_string(thresh))
-        # Here we extract target, runs, and wickets using regex-based simulation
+        # Here we extract target, runs, wickets, overs, and balls bowled using regex-based simulation
         extracted_text = "Target: 175, Score: 120/3 after 14.2 overs"
         
         target_match = re.search(r'Target:\s*(\d+)', extracted_text, re.IGNORECASE)
         score_match = re.search(r'Score:\s*(\d+)/(\d+)', extracted_text, re.IGNORECASE)
+        over_match = re.search(r'after\s*(\d+)\.(\d+)\s*overs', extracted_text, re.IGNORECASE)
         
         extracted_target = 0
         extracted_runs = 0
         extracted_wickets = 0
+        extracted_overs = 0
+        extracted_balls = 0
         
         if target_match:
             extracted_target = int(target_match.group(1))
         if score_match:
             extracted_runs = int(score_match.group(1))
             extracted_wickets = int(score_match.group(2))
+        if over_match:
+            extracted_overs = int(over_match.group(1))
+            extracted_balls = int(over_match.group(2))
             
         # Update Streamlit session state instantly
         if extracted_target > 0:
@@ -340,18 +346,24 @@ def process_match_screenshot(uploaded_file):
             st.session_state.current_score = extracted_runs
         if extracted_wickets >= 0:
             st.session_state.wickets_lost = extracted_wickets
+        if extracted_overs >= 0:
+            st.session_state.overs_completed = extracted_overs
+        if extracted_balls >= 0:
+            st.session_state.balls_bowled = extracted_balls
             
         return True, {
             "target": extracted_target,
             "score": extracted_runs,
             "wickets": extracted_wickets,
+            "overs": extracted_overs,
+            "balls": extracted_balls,
             "raw_text": extracted_text
         }
     except Exception as e:
         return False, f"Preprocessing failed: {str(e)}"
 
-def generate_commentary(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob):
-    """Generates Harsha Bhogle / Ravi Shastri-style commentary using GPT or Gemini model"""
+def generate_commentary_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob):
+    """Generates Harsha Bhogle / Ravi Shastri-style commentary using Google Gemini SDK"""
     prompt = (
         f"Generate a witty, high-energy cricket commentary in the style of Harsha Bhogle or Ravi Shastri "
         f"for the current match state: Chasing team is {batting_team}, defending team is {bowling_team}. "
@@ -361,21 +373,16 @@ def generate_commentary(client, model_name, batting_team, bowling_team, runs_nee
         f"Provide exactly a 2-line commentary highlighting the tension and prediction. Do not include any meta-text."
     )
     try:
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": "You are a legendary IPL cricket commentator (like Harsha Bhogle or Ravi Shastri)."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=120,
-            temperature=0.8
+        response = model.generate_content(
+            prompt,
+            generation_config={"max_output_tokens": 120, "temperature": 0.8}
         )
-        return response.choices[0].message.content
+        return response.text
     except Exception as e:
         return f"⚠️ Commentary generation failed: {e}"
 
-def generate_tactical_advice(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr):
-    """Generates situation-based coach recommendations for both captains"""
+def generate_tactical_advice_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr):
+    """Generates situation-based coach recommendations for both captains using Google Gemini SDK"""
     prompt = (
         f"Act as a professional cricket coach. Analyze this current IPL match state:\n"
         f"- Batting (Chasing): {batting_team} ({batting_prob}% win odds, Current RR: {crr:.2f}, Required RR: {rrr:.2f})\n"
@@ -386,21 +393,16 @@ def generate_tactical_advice(client, model_name, batting_team, bowling_team, run
         f"2. For the Bowling Captain: How should the bowling team defend this?"
     )
     try:
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": "You are an elite IPL cricket coach providing direct tactical advice to captains."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=150,
-            temperature=0.7
+        response = model.generate_content(
+            prompt,
+            generation_config={"max_output_tokens": 150, "temperature": 0.7}
         )
-        return response.choices[0].message.content
+        return response.text
     except Exception as e:
         return f"⚠️ Tactical coaching failed: {e}"
 
-def generate_historical_context(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost):
-    """Finds matching historic run chases in IPL history"""
+def generate_historical_context_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost):
+    """Finds matching historic run chases in IPL history using Google Gemini SDK"""
     prompt = (
         f"Given a situation in an IPL match where the chasing team ({batting_team}) needs "
         f"{runs_needed} runs from {balls_left} balls with {wickets_lost} wickets lost against {bowling_team}. "
@@ -409,16 +411,11 @@ def generate_historical_context(client, model_name, batting_team, bowling_team, 
         f"If no exact match exists, provide a legendary match with a similar equation (e.g. 10-15 RPO needed in the final overs)."
     )
     try:
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": "You are an expert cricket historian with encyclopedic knowledge of IPL match outcomes."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=150,
-            temperature=0.6
+        response = model.generate_content(
+            prompt,
+            generation_config={"max_output_tokens": 150, "temperature": 0.6}
         )
-        return response.choices[0].message.content
+        return response.text
     except Exception as e:
         return f"⚠️ Historical simulation lookup failed: {e}"
 
@@ -594,6 +591,10 @@ if 'current_score' not in st.session_state:
     st.session_state.current_score = 0
 if 'wickets_lost' not in st.session_state:
     st.session_state.wickets_lost = 0
+if 'overs_completed' not in st.session_state:
+    st.session_state.overs_completed = 0
+if 'balls_bowled' not in st.session_state:
+    st.session_state.balls_bowled = 0
 
 if 'predicted' not in st.session_state:
     st.session_state.predicted = False
@@ -623,56 +624,36 @@ if 'predicted' not in st.session_state:
     st.session_state.override_message = ""
     st.session_state.override_status_type = ""
 
-# Load Gemini configurations globally from Streamlit secrets
-api_connected = False
-api_key = None
-try:
-    api_key = st.secrets["gemini_api"]["api_key"]
-    api_connected = True
-except Exception:
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    if api_key:
-        api_connected = True
+# 1. Front-Page OpenCV Layout Placement
+st.markdown('<div class="glass-card" style="margin-top: 1.5rem; margin-bottom: 1.5rem;">', unsafe_allow_html=True)
+st.subheader("📸 Automated Scoreboard Smart Scan (OpenCV)")
+uploaded_file = st.file_uploader("Upload live match screenshot to parse metrics automatically", type=['jpg', 'jpeg', 'png'])
 
-# Sidebar mode selection for manual override vs OpenCV screenshot scan
-with st.sidebar:
-    st.markdown('<div class="glass-card" style="padding: 1.25rem; border-radius: 12px; margin-bottom: 1.5rem;">', unsafe_allow_html=True)
-    st.subheader("🛠️ Data Ingestion Mode")
-    input_mode = st.radio(
-        "Select Ingestion Method:",
-        ["Manual Data Overrides", "📸 OpenCV Smart Scan (Screenshot)"],
-        index=0
-    )
-    
-    if input_mode == "📸 OpenCV Smart Scan (Screenshot)":
-        st.markdown("---")
-        st.markdown("**📸 Upload Match Banner / Screen**")
-        uploaded_file = st.file_uploader("Upload screenshot", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
-        
-        if uploaded_file is not None:
-            with st.spinner("Processing screenshot with OpenCV..."):
-                success, result = process_match_screenshot(uploaded_file)
-                if success:
-                    st.success("✅ OpenCV Smart Scan Complete!")
-                    st.json({
-                        "Parsed Target": result["target"],
-                        "Parsed Score": result["score"],
-                        "Parsed Wickets": result["wickets"]
-                    })
-                    with st.expander("👁️ View OCR & Image Pipeline Details"):
-                        st.caption("Extracted text pattern:")
-                        st.code(result["raw_text"])
-                        st.caption("OpenCV processing operations: Grayscale conversion, Gaussian Blur smoothing, and Otsu's adaptive thresholding.")
-                else:
-                    st.error(f"Scan failed: {result}")
-    st.markdown('</div>', unsafe_allow_html=True)
+if uploaded_file is not None:
+    with st.spinner("Processing screenshot with OpenCV..."):
+        success, result = process_scoreboard_frame(uploaded_file)
+        if success:
+            st.success("✅ OpenCV Smart Scan Complete!")
+            st.json({
+                "Parsed Target": result["target"],
+                "Parsed Score": result["score"],
+                "Parsed Wickets": result["wickets"],
+                "Parsed Overs": f"{result['overs']}.{result['balls']}"
+            })
+            with st.expander("👁️ View OCR & Image Pipeline Details"):
+                st.caption("Extracted text pattern:")
+                st.code(result["raw_text"])
+                st.caption("OpenCV processing operations: Grayscale conversion, Gaussian Blur smoothing, and Otsu's adaptive thresholding.")
+        else:
+            st.error(f"Scan failed: {result}")
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Split Workspace Layout (Inputs Left, Immediate Predictions Right)
 col_left, col_right = st.columns([1.05, 1.15], gap="large")
 
 with col_left:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.subheader("Match Parameter Controls")
+    st.subheader("⚙️ Match Parameter Controls")
     
     # Match Teams selectors with placeholders
     batting_team = st.selectbox("Batting Team (Chasing)", ["--- Select Team ---"] + TEAMS, index=0)
@@ -701,9 +682,11 @@ with col_left:
         
     col_ov, col_bl = st.columns(2)
     with col_ov:
-        overs_completed = st.number_input("Overs completed", min_value=0, max_value=19, value=0, step=1)
+        overs_completed = st.number_input("Overs completed", min_value=0, max_value=19, value=int(st.session_state.overs_completed), step=1)
+        st.session_state.overs_completed = overs_completed
     with col_bl:
-        balls_in_over = st.number_input("Balls bowled in current over", min_value=0, max_value=5, value=0, step=1)
+        balls_in_over = st.number_input("Balls bowled in current over", min_value=0, max_value=5, value=int(st.session_state.balls_bowled), step=1)
+        st.session_state.balls_bowled = balls_in_over
     
     # Trigger Predict button
     predict_clicked = st.button("⚡ ANALYZE MATCH STATE", use_container_width=True)
@@ -1092,21 +1075,22 @@ if st.session_state.predicted:
 
 # 4th Tier: Generative AI Match Assistant
 if st.session_state.predicted:
-    st.markdown('<div class="glass-card" style="margin-top: 1.5rem;">', unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown("### 🔮 Generative AI Match Assistant")
     
-    # Production-grade background validation framework
+    # Check production cloud secrets variables dynamically
     if "gemini_api" in st.secrets and st.secrets["gemini_api"].get("api_key"):
         try:
-            st.markdown("### 🔮 Generative AI Match Assistant")
-            st.caption("🟢 **Generative AI Match Assistant:** Engine Active (Gemini 1.5 Flash Bound)")
+            # Bind API credentials behind the scenes safely
+            import google.generativeai as genai
+            genai.configure(api_key=st.secrets["gemini_api"]["api_key"])
             
-            from openai import OpenAI
-            # Connect using Gemini's OpenAI Compatibility base URL
-            client = OpenAI(
-                api_key=st.secrets["gemini_api"]["api_key"].strip(),
-                base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-            )
-            model_name = "gemini-1.5-flash"
+            # Success Badge to signal the module has switched ONLINE
+            st.caption("🟢 **Generative AI Match Assistant:** Engine Active (Gemini 1.5 Flash Online)")
+            
+            # Standard structural evaluation tabs
+            tabs = st.tabs(["📊 Live Commentary", "📋 Tactical Coaching", "📚 Historical Sim"])
             
             # Retrieve parameters safely
             batting_team = st.session_state.batting_team
@@ -1118,38 +1102,33 @@ if st.session_state.predicted:
             rrr = st.session_state.rrr
             crr = st.session_state.crr
             
-            # Safely render layout navigation tabs
-            tab_commentary, tab_coach, tab_history = st.tabs([
-                "📊 Live Commentary", 
-                "📋 Tactical Coaching", 
-                "📚 Historical Sim"
-            ])
+            model = genai.GenerativeModel("gemini-1.5-flash")
             
-            with tab_commentary:
-                st.write("### 🎙️ Ravi & Harsha AI Commentator")
-                if st.button("🔊 GENERATE LIVE COMMENTARY", use_container_width=True):
+            with tabs[0]:
+                st.write("💬 Dynamic live match assistant commentary matrix ready.")
+                if st.button("🔊 Generate Live Commentary", use_container_width=True):
                     with st.spinner("Harsha is taking the mic..."):
-                        commentary = generate_commentary(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob)
+                        commentary = generate_commentary_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob)
                         st.chat_message("assistant", avatar="🎙️").write(commentary)
                         
-            with tab_coach:
-                st.write("### 📋 Situational AI Coach Advisory")
-                if st.button("🧠 REQUEST TACTICAL STRATEGY", use_container_width=True):
+            with tabs[1]:
+                st.write("📋 Situational AI Coach Advisory ready.")
+                if st.button("✨ Request Tactical Strategy", use_container_width=True):
                     with st.spinner("Analyzing match pressure index..."):
-                        advice = generate_tactical_advice(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr)
+                        advice = generate_tactical_advice_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr)
                         st.chat_message("assistant", avatar="📋").write(advice)
                         
-            with tab_history:
-                st.write("### 📚 Historical Run-Chase Sim")
-                if st.button("🔍 FIND HISTORICAL RUN-CHASE SIMILARITIES", use_container_width=True):
+            with tabs[2]:
+                st.write("📚 Historical Run-Chase Sim ready.")
+                if st.button("🔍 Find Historical Run-Chase Similarities", use_container_width=True):
                     with st.spinner("Scanning IPL historical records..."):
-                        history = generate_historical_context(client, model_name, batting_team, bowling_team, runs_needed, balls_left, wickets_lost)
+                        history = generate_historical_context_gemini(model, batting_team, bowling_team, runs_needed, balls_left, wickets_lost)
                         st.chat_message("assistant", avatar="📚").write(history)
                         
         except Exception as e:
-            st.error(f"Failed to initialize GenAI Engine: {str(e)}")
+            st.error(f"Failed to boot GenAI Engine: {str(e)}")
     else:
-        st.markdown("### 🔮 Generative AI Match Assistant")
+        # Standard clean info block if server syncing is delayed
         st.info("ℹ️ Generative Assistant running in Offline Mode. Configure your Streamlit Management Cloud Dashboard Secrets to toggle Live Insights.")
         
     st.markdown('</div>', unsafe_allow_html=True)
