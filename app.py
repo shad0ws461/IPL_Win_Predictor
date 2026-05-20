@@ -285,6 +285,78 @@ def calibrate_input_df(df):
             
     return calibrated_df
 
+def generate_commentary(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob):
+    """Generates Harsha Bhogle / Ravi Shastri-style commentary using GPT model"""
+    prompt = (
+        f"Generate a witty, high-energy cricket commentary in the style of Harsha Bhogle or Ravi Shastri "
+        f"for the current match state: Chasing team is {batting_team}, defending team is {bowling_team}. "
+        f"They need {runs_needed} runs off {balls_left} balls, with {wickets_lost} wickets lost. "
+        f"Our machine learning model predicts the chasing team has a {batting_prob}% chance of winning, "
+        f"and the defending team has a {100.0 - batting_prob:.1f}% chance. "
+        f"Provide exactly a 2-line commentary highlighting the tension and prediction. Do not include any meta-text."
+    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a legendary IPL cricket commentator (like Harsha Bhogle or Ravi Shastri)."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=120,
+            temperature=0.8
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"⚠️ Commentary generation failed: {e}"
+
+def generate_tactical_advice(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr):
+    """Generates situation-based coach recommendations for both captains"""
+    prompt = (
+        f"Act as a professional cricket coach. Analyze this current IPL match state:\n"
+        f"- Batting (Chasing): {batting_team} ({batting_prob}% win odds, Current RR: {crr:.2f}, Required RR: {rrr:.2f})\n"
+        f"- Bowling (Defending): {bowling_team} ({100.0 - batting_prob:.1f}% win odds, Wickets lost: {wickets_lost}/10)\n"
+        f"- Target details: {runs_needed} runs needed off {balls_left} balls.\n\n"
+        f"Provide two separate short tactical recommendations (1-2 sentences each) in bullet points:\n"
+        f"1. For the Batting Captain: What should the batsmen do to chase this down?\n"
+        f"2. For the Bowling Captain: How should the bowling team defend this?"
+    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an elite IPL cricket coach providing direct tactical advice to captains."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150,
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"⚠️ Tactical coaching failed: {e}"
+
+def generate_historical_context(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost):
+    """Finds matching historic run chases in IPL history"""
+    prompt = (
+        f"Given a situation in an IPL match where the chasing team ({batting_team}) needs "
+        f"{runs_needed} runs from {balls_left} balls with {wickets_lost} wickets lost against {bowling_team}. "
+        f"Find 1 legendary, similar run-chase in IPL history that matches this pressure index or situation. "
+        f"Summarize the match (Teams, year, final result) and explain in 2 sentences how the situation matches. "
+        f"If no exact match exists, provide a legendary match with a similar equation (e.g. 10-15 RPO needed in the final overs)."
+    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert cricket historian with encyclopedic knowledge of IPL match outcomes."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150,
+            temperature=0.6
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"⚠️ Historical simulation lookup failed: {e}"
+
 def calculate_stress_score(rrr, wickets_left):
     """Weigh Required Run Rate against remaining wicket resources to find Stress Index (0-100)"""
     rrr_comp = min(rrr / 18.0, 1.0) * 60.0
@@ -897,6 +969,67 @@ if st.session_state.predicted:
         )
         st.markdown(f'<div class="nlp-box" style="border-left: 4px solid {insight["color"]};">{insight["text"]}</div>', unsafe_allow_html=True)
         
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# 4th Tier: Generative AI Match Assistant
+if st.session_state.predicted:
+    st.markdown('<div class="glass-card" style="margin-top: 1.5rem;">', unsafe_allow_html=True)
+    st.subheader("🔮 Generative AI Match Assistant (Powered by GPT-4)")
+    
+    # Check for API Key in environment or secrets first
+    api_key = st.secrets.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    
+    if not api_key:
+        api_key = st.text_input("OpenAI API Key Required", type="password", help="Enter your OpenAI API key to unlock real-time live commentary, tactical coaching, and historical simulations.")
+        
+    if not api_key:
+        st.info("💡 Enter your OpenAI API Key above to unlock live generative insights.")
+    else:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            
+            # Retrieve parameters safely
+            batting_team = st.session_state.batting_team
+            bowling_team = st.session_state.bowling_team
+            runs_needed = st.session_state.runs_left
+            balls_left = st.session_state.balls_left
+            wickets_lost = 10 - st.session_state.wickets_left
+            batting_prob = st.session_state.batting_prob
+            rrr = st.session_state.rrr
+            crr = st.session_state.crr
+            
+            # Create tabs for clean layout spacing
+            tab_commentary, tab_coach, tab_history = st.tabs([
+                "🎙️ Live Commentary", 
+                "📋 Tactical Coaching", 
+                "📜 Historical Sim"
+            ])
+            
+            with tab_commentary:
+                st.write("### 🎙️ Ravi & Harsha AI Commentator")
+                if st.button("🔊 GENERATE LIVE COMMENTARY", use_container_width=True):
+                    with st.spinner("Harsha is taking the mic..."):
+                        commentary = generate_commentary(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob)
+                        st.chat_message("assistant", avatar="🎙️").write(commentary)
+                        
+            with tab_coach:
+                st.write("### 📋 Situational AI Coach Advisory")
+                if st.button("🧠 REQUEST TACTICAL STRATEGY", use_container_width=True):
+                    with st.spinner("Analyzing match pressure index..."):
+                        advice = generate_tactical_advice(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost, batting_prob, rrr, crr)
+                        st.chat_message("assistant", avatar="📋").write(advice)
+                        
+            with tab_history:
+                st.write("### 📜 Match Contextualizer & History")
+                if st.button("🔍 FIND HISTORICAL RUN-CHASE SIMILARITIES", use_container_width=True):
+                    with st.spinner("Scanning IPL historical records..."):
+                        history = generate_historical_context(client, batting_team, bowling_team, runs_needed, balls_left, wickets_lost)
+                        st.chat_message("assistant", avatar="📜").write(history)
+                        
+        except Exception as e:
+            st.error(f"Error initializing OpenAI Client: {e}")
+            
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer info (dynamically calculated to CSE-AIML 2026)
