@@ -5,3 +5,4 @@ streamlit
 requests
 plotly
 openai
+opencv-python-headless
